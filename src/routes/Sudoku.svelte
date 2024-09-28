@@ -1,153 +1,129 @@
-<!-- <script>
-	import clsx from "clsx";
+<script lang="ts">
+	import { generateSudokuForUi } from '$lib';
+	import { checkSudokuErrors, checkSudokuState } from '$lib/uiErrorChecker';
+	import clsx from 'clsx';
+	import { onMount } from 'svelte';
+	const PUZZLE_SIZE = 9;
+	// Initialize a 9x9 Sudoku grid with empty strings
+	let sudoku = generateSudokuForUi(5);
+	let completed = false;
+	let usedNumbers: number[] = [];
+	let active: number | undefined = undefined;
+	let highlight: number | undefined = undefined;
+	const ABVIABLE_SIZE = [1, 2, 3, 4, 5, 6, 7, 8, 9];
 
-    let grid = Array(14).fill().map(() => Array(14).fill(''));
-  </script>
-  
- <style>
-  .grid-cols-14 {
-    grid-template-columns: repeat(14, minmax(0, 1fr));
-  }
- </style>
-  
-  <div class="grid grid-cols-14 gap-1 ">
-    {#each grid as row, rowIndex}
-      {#each row as cell, colIndex}
-        <input
-          type="text"
-          class={clsx( "w-14 h-14 text-center  border",{
+	function handleClick(i: number, j: number) {
+		
+		const current = sudoku[i][j];
+		if (current === undefined) return;
+		if(current.value){
 
-          })}
-          bind:value={grid[rowIndex][colIndex]}
-          maxlength="1"
-        />
-      {/each}
-    {/each}
-  </div>
-   -->
-<!-- <script lang="ts">
-	// Initialize a 16x16 grid with 14 pre-filled cells (sample data)
-	let board = [
-		[1, '', '', '', '', '', 5, '', '', 2, '', '', '', '', '', ''],
-		['', 3, '', '', '', '', '', '', '', '', 4, '', '', '', '', ''],
-		['', '', 7, '', '', '', '', 6, '', '', '', '', '', 8, '', ''],
-		['', '', '', '', '', '', '', '', 9, '', '', 4, '', '', '', ''],
-		['', '', '', 2, '', '', '', '', '', '', '', '', '', '', 7, ''],
-		['', '', '', '', 6, '', '', '', '', 1, '', '', '', '', '', ''],
-		['', '', '', '', '', 8, '', '', '', '', '', 3, '', '', '', ''],
-		[6, '', '', '', '', '', '', '', '', '', '', '', '', '', '', 9],
-		['', '', '', '', 5, '', '', '', '', '', 1, '', '', '', '', ''],
-		['', '', '', '', '', '', 7, '', '', 9, '', '', '', '', '', ''],
-		['', '', '', 4, '', '', '', '', '', '', '', '', '', '', 2, ''],
-		['', '', 1, '', '', '', '', 6, '', '', '', '', '', '', '', ''],
-		['', 8, '', '', '', '', '', '', '', '', '', '', '', 4, '', ''],
-		['', '', '', 5, '', '', '', '', '', '', '', '', '', '', 3, ''],
-		['', '', '', '', '', '', '', '', 8, '', '', '', '', '', 7, ''],
-		['', '', '', '', '', 3, '', '', '', '', '', '', '', '', '', 5]
-	];
-
-	// Function to update the cell value
-	function updateCell(row: number, col: number, value: number | '') {
-		if (value === '' || (value >= 1 && value <= 16)) {
-			board[row][col] = value;
+			highlight=current.value
 		}
-	}
+		if (current.base) return;
+		if (sudoku[i][j].value) {
+			sudoku[i][j].value = undefined;
+		} else {
+			if (active === undefined) return;
+			sudoku[i][j].value = active;
+		}
+		checkSudokuErrors(sudoku, PUZZLE_SIZE);
 
-	// Function to check if the board is solved (optional validation)
-	function checkSolution() {
-		// Placeholder function to check if the board is solved correctly
-		alert('Solution checked! Implement your validation logic here.');
+		const {
+			isComplete,
+			isValid,
+			usedNumbers: tempUsedNumbers
+		} = checkSudokuState(sudoku, PUZZLE_SIZE);
+
+		usedNumbers = tempUsedNumbers;
+		completed = isComplete && isValid;
 	}
+	onMount(() => {
+		document.addEventListener('keydown', (e) => {
+			const num = Number(e.key);
+
+			if (num === 0) return;
+			if (ABVIABLE_SIZE.includes(num)) {
+				active = num;
+			}
+		});
+	});
+	
 </script>
 
-<div class="flex flex-col items-center justify-center mt-10">
-	<div class="grid grid-cols-16 gap-1 border-4 border-gray-700 p-2">
-		{#each board as row, rowIndex}
-			{#each row as cell, colIndex}
-				<input
-					type="number"
-					min="1"
-					max="16"
-					bind:value={board[rowIndex][colIndex]}
-					on:input={(e) => {
-						if (e.currentTarget.value === 'e') {
-							updateCell(rowIndex, colIndex, '');
-							return;
-						}
-						const value = +e.currentTarget.value;
-
-						updateCell(rowIndex, colIndex, isNaN(value) ? '' : value);
-					}}
-					maxlength="2"
-					class="w-10 h-10 text-center border border-gray-500 rounded-lg text-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-				/>
-				
+{#if completed}
+	<div class="text-center text-2xl font-bold">
+		<p>Congratulations! You have completed the Sudoku puzzle!</p>
+	</div>
+{:else}
+	<div class="sudoku-grid">
+		{#each sudoku as row, i}
+			{#each row as cell, j}
+				<button
+					class={clsx(
+						'sudoku-cell',
+						cell.base ? 'text-gray-900 font-bold' : 'text-gray-700 font-thin',
+						cell.error ? 'text-red-500' : ''
+						,
+						{'text-purple-500 underline':highlight===cell.value}
+					)}
+					tabindex="0"
+					aria-disabled={cell.base}
+					on:click={() => handleClick(i, j)}
+				>
+					{cell.value || ''}
+				</button>
 			{/each}
 		{/each}
 	</div>
+	<div class="grid grid-cols-6 md:grid-cols-9 gap-4">
+		{#each ABVIABLE_SIZE as size}
+			<button
+				class={clsx('p-2 border rounded-sm px-4 disabled:opacity-50 disabled:cursor-not-allowed', {
+					'border-purple-900 text-purple-900': active === size
+				})}
+				tabindex="0"
+				disabled={usedNumbers[size] === PUZZLE_SIZE}
+				on:click={() => {
+					active = size;
+				}}>{size}</button
+			>
+		{/each}
+	</div>
+{/if}
 
-	<button on:click={checkSolution} class="mt-4 bg-green-500 text-white px-4 py-2 rounded-lg">
-		Check Solution
-	</button>
-</div>
+<!-- 3*3=9*= -->
 
-<style>
-	:global(
-			input[type='number']::-webkit-outer-spin-button,
-			input[type='number']::-webkit-inner-spin-button
-		) {
-		/* Hide the arrow buttons in Chrome, Safari, Edge, and Opera */
-
-		-webkit-appearance: none;
-		margin: 0;
-	}
-
-	/* Hide the arrow buttons in Firefox */
-	:global(input[type='number']) {
-		-moz-appearance: textfield;
-	}
-
-	.grid-cols-16 {
-		grid-template-columns: repeat(16, minmax(0, 1fr));
-	}
-	.grid {
-		max-width: 700px;
-	}
-</style> -->
-
-<script>
-	let sudoku = Array(9).fill().map(() => Array(9).fill(''));
-  </script>
-  
-  <style>
+<style >
+	/* Container for the 9x9 Sudoku grid */
 	.sudoku-grid {
-	  display: grid;
-	  grid-template-columns: repeat(9, 1fr);
-	  gap: 1px;
+		@apply grid grid-cols-9 grid-rows-9 w-[450px] h-[450px] border-[3px]  border-green-800;
 	}
-	.cell {
-	  width: 40px;
-	  height: 40px;
-	  display: flex;
-	  align-items: center;
-	  justify-content: center;
-	  font-size: 1.25rem;
+
+	.sudoku-cell {
+		@apply border-black w-[50px] h-[50px] text-center flex justify-center items-center text-xl border;
 	}
-	.group-border {
-	  border: 2px solid black;
+
+	.sudoku-cell:nth-child(3n) {
+		@apply border-r-[3px] border-r-green-800; 
 	}
-	.normal-border {
-	  border: 1px solid gray;
+
+	.sudoku-cell:nth-child(9n) {
+		@apply border-r-0;
 	}
-  </style>
-  
-  <div class="sudoku-grid">
-	{#each sudoku as row, rowIndex}
-	  {#each row as cell, colIndex}
-		<div class="cell {rowIndex % 3 === 0 && colIndex % 3 === 0 ? 'group-border' : 'normal-border'}">
-		  {cell}
-		</div>
-	  {/each}
-	{/each}
-  </div>
-  
+
+	.sudoku-cell:nth-child(-n + 27):nth-child(9n + 1) {
+		@apply border-l-[3px] border-l-green-800;
+	}
+
+	.sudoku-grid > .sudoku-cell:nth-child(n + 19):nth-child(-n + 27) {
+		@apply border-b-[3px] border-b-green-800;;
+	}
+	.sudoku-grid > .sudoku-cell:nth-child(n + 46):nth-child(-n + 54) {
+		@apply border-b-[3px] border-b-green-800;;
+	}
+
+	.sudoku-cell:nth-child(n + 73) {
+		@apply border-b-0;
+	}
+</style>
